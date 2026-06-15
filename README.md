@@ -125,19 +125,61 @@ npm install
 npx wrangler login
 ```
 
-### 4. 创建 KV 存储
+### 4. 创建 KV 存储（生产与预览）
+
+建议同时创建生产（用于发布）和预览（用于 `wrangler dev` / 预览环境）两个命名空间：
 
 ```bash
+# 创建生产命名空间，会输出 id
 npx wrangler kv namespace create KV
+
+# 创建预览命名空间，会输出 preview_id
 npx wrangler kv namespace create KV --preview
 ```
 
-将输出的 `id` 和 `preview_id` 填入 `wrangler.toml`。
+命令会输出类似：
 
-### 5. 设置密码
+```
+Created namespace "KV" with id: 0123456789abcdef
+Created preview namespace "KV" with id: fedcba9876543210
+```
+
+把输出的 id（生产）和 preview id（预览）填入 `wrangler.toml`。
+
+示例 `wrangler.toml`（替换为你的实际 id 和 account_id）：
+
+```toml
+name = "your-worker-name"
+account_id = "YOUR_ACCOUNT_ID"
+# … 其它配置 …
+
+kv_namespaces = [
+  { binding = "KV", id = "0123456789abcdef", preview_id = "fedcba9876543210" }
+]
+```
+
+说明：
+- binding 为 Worker 中访问的全局变量名（示例为 `KV`），在代码中使用 `KV.get()` / `KV.put()`。
+- id 用于发布（production），preview_id 用于 `wrangler dev` 或 Cloudflare 的预览环境。
+
+如果你只希望使用生产命名空间，也可以只运行第一条命令并只填写 `id`。
+
+常见问题：
+- 如果创建时报错 409（冲突），说明同名命名空间已存在；可以使用不同的 binding 名称或在 Dashboard 中查看现有命名空间。
+- 不同版本的 Wrangler 子命令可能略有差异（请运行 `npx wrangler --version` 确认）。
+
+### 5. 设置管理密码和可选密钥
+
+把管理密码作为 Worker 的 secret：
 
 ```bash
 echo "your-admin-password" | npx wrangler secret put ADMIN_TOKEN
+```
+
+如果使用 zbape 测速功能，也把 API Key 放入 secret：
+
+```bash
+echo "your-api-key" | npx wrangler secret put ZBAPE_API_KEY
 ```
 
 ### 6. 部署
@@ -146,12 +188,18 @@ echo "your-admin-password" | npx wrangler secret put ADMIN_TOKEN
 npm run deploy
 ```
 
+或者使用 `wrangler publish`（取决于你的 npm 脚本）：
+
+```bash
+npx wrangler publish
+```
+
 ### 7. 自定义域名（推荐）
 
 Workers 默认的 `*.workers.dev` 域名在部分网络环境下不可直接访问。如果你有托管在 Cloudflare 的域名：
 
 1. 在 Cloudflare DNS 添加记录：`AAAA tvbox 100::` （已代理）
-2. 取消 `wrangler.toml` 中 `routes` 的注释，填入你的域名和 Zone ID
+2. 在 `wrangler.toml` 中配置 `routes`，并填写你的域名和 Zone ID（从 Cloudflare 仪表盘获取）
 
 ---
 
@@ -215,7 +263,7 @@ echo "your-api-key" | npx wrangler secret put ZBAPE_API_KEY
 │   │   ├── dedup.ts       # 去重逻辑
 │   │   ├── speedtest.ts   # zbape.com 测速 API
 │   │   ├── admin.ts       # 管理后台页面
-│   │   ├── dashboard.ts   # 监控仪表盘页面
+│   │   ├── dashboard.ts   # 监控仪表页面
 │   │   ├── types.ts       # TypeScript 类型
 │   │   └── config.ts      # 配置常量
 │   ├── storage/           # 存储抽象层
